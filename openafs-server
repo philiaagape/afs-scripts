@@ -1,0 +1,84 @@
+#!/bin/bash
+#
+# openafs-server	Start/Stop the OpenAFS Server
+#
+# chkconfig: 2345 49 51
+# description: OpenAFS is a distributed filesystem.
+#
+# $Revision$
+
+[ -f /etc/init.d/functions ] && . /etc/init.d/functions
+[ -f /etc/sysconfig/openafs ] && . /etc/sysconfig/openafs
+
+lockfile=/var/lock/subsys/openafs-server
+bosserver=/usr/afs/bin/bosserver
+bos=`which bos 2>/dev/null`
+bos=${bos:-/usr/local/bin/bos}
+
+start() {
+	echo -n $"Starting openafs-server: "
+	if [ -e $lockfile ] ; then
+		echo -n $"cannot start openafs-server: already running"
+		failure $"cannot start openafs-server: already running"
+		echo
+		return 1
+	fi
+	daemon $bosserver $BOSSERVER_ARGS
+	RETVAL=$?
+	[ $RETVAL -eq 0 ] && touch $lockfile
+	echo
+	return $RETVAL
+}
+
+stop() {
+	echo -n $"Stopping openafs-server: "
+	if [ ! -e $lockfile ] ; then
+		echo -n $"cannot stop openafs-server: not running"
+		failure $"cannot stop openafs-server: not running"
+		echo
+		return 1
+	fi
+	$bos shutdown localhost -wait -localauth
+	RETVAL=$?
+	if [ $RETVAL -ne 0 ] ; then
+		echo -n $"failed to shutdown OpenAFS"
+		failure $"failed to shutdown OpenAFS"
+		echo
+		return $RETVAL
+	fi
+	killproc bosserver
+	RETVAL=$?
+	[ $RETVAL -eq 0 ] && rm -f $lockfile
+	echo
+	return $RETVAL
+}
+
+rhstatus() {
+	status bosserver
+}
+
+restart() {
+	stop || exit
+	start
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  restart)
+        restart
+        ;;
+  status)
+        rhstatus
+        ;;
+  condrestart)
+        [ -f $lockfile ] && restart || :
+        ;;
+  *)
+        echo $"Usage: $0 {start|stop|status|restart|condrestart}"
+        exit 1
+esac
